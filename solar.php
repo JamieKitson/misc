@@ -47,7 +47,7 @@ switch ($unit) {
   default: $msg = "Warning: unknown unit: $unit";
 }
 
-if ($power < $warn)
+if (($power < $warn) || !empty($msg))
   mail($emails, "Solar Power Level", "Solar power level is currently at $power watts. $msg");
 
 function doCurl($url, $extras = array())
