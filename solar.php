@@ -2,7 +2,7 @@
 
 /*
    A script to poll the enecsys website for solar panel output power
-   and email an alert if it calls below a certain level. See also
+   and email an alert if it falls below a certain level. See also
    http://www.fhemwiki.de/wiki/Enecsys_Monitoring_System
 */
 
