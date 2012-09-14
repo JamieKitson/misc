@@ -1,7 +1,10 @@
 <?php
 
+$warn = 10;
+
 $user = trim(file_get_contents('username.txt'));
 $pass = trim(file_get_contents('password.txt'));
+$emails = trim(file_get_contents('emails.txt'));
 
 $result = doCurl('https://monitor.enecsys.net');
 
@@ -29,8 +32,17 @@ $result = doCurl('https://monitor.enecsys.net/ews/InstallationService.asmx/GetCu
             xml_parser_free($p);
 
 //echo print_r($results);
-echo $results[$index['CURRENTACPOWER'][0]]['value'];
-echo $results[$index['CURRENTACPOWERUNIT'][0]]['value'];
+$power = $results[$index['CURRENTACPOWER'][0]]['value'];
+$unit = $results[$index['CURRENTACPOWERUNIT'][0]]['value'];
+$msg = "";
+switch ($unit) {
+  case "W": break;
+  case "kW": $power *= 1000; break;
+  default: $msg = "Warning: unknown unit: $unit";
+}
+
+if ($power < $warn)
+  mail($emails, "Solar Power Level", "Solar power level is currently at $power watts. $msg");
 
 function doCurl($url, $extras = array())
 {
