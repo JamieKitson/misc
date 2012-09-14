@@ -24,7 +24,13 @@ $result = doCurl('https://monitor.enecsys.net', $extras);
 
 $result = doCurl('https://monitor.enecsys.net/ews/InstallationService.asmx/GetCurrentInstallationStatus');
 
-echo $result;
+            $p = xml_parser_create();
+            xml_parse_into_struct($p, $result, $results, $index);
+            xml_parser_free($p);
+
+//echo print_r($results);
+echo $results[$index['CURRENTACPOWER'][0]]['value'];
+echo $results[$index['CURRENTACPOWERUNIT'][0]]['value'];
 
 function doCurl($url, $extras = array())
 {
