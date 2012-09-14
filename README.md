@@ -1,6 +1,6 @@
 Dad
 ===
-A script to poll the [SOS.org.uk](http://sos.org.uk) and email me posts by my dad.
+A script to poll the [SOS.org.uk](http://sos.org.uk) website and email me posts by my dad.
 
 Solar
 =====
