@@ -1,5 +1,9 @@
 <?
 
+/*
+   A script to poll the SOS.org.uk website and email posts by my dad
+*/
+
 error_reporting(E_ALL & ~E_NOTICE & ~E_WARNING);
 
 $doc = new DOMDocument();
@@ -23,7 +27,7 @@ for ($i = 0; $i < $entries->length; $i += 2)
 
 	$date = $xmlHeading->firstChild->nodeValue;
 
-	if (($date != '') && (strtotime($date) > time() - 2*24*60*60) && (stripos($strBody, 'Kitson') !== false))
+	if (($date != '') && (strtotime($date) > time() - 2*24*60*60)) // && (stripos($strBody, 'Kitson') !== false))
 	{
 		$anch = $xmlHeading->childNodes->item(2)->firstChild;
 		$title = $anch->nodeValue;
