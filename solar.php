@@ -1,5 +1,11 @@
 <?php
 
+/*
+   A script to poll the enecsys website for solar panel output power
+   and email an alert if it calls below a certain level. See also
+   http://www.fhemwiki.de/wiki/Enecsys_Monitoring_System
+*/
+
 $warn = 10;
 
 $user = trim(file_get_contents('username.txt'));
