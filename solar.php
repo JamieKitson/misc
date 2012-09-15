@@ -8,9 +8,11 @@
 
 $warn = 10;
 
-$user = trim(file_get_contents('username.txt'));
-$pass = trim(file_get_contents('password.txt'));
-$emails = trim(file_get_contents('emails.txt'));
+$dir = dirname(__FILE__);
+
+$user = trim(file_get_contents("$dir/username.txt"));
+$pass = trim(file_get_contents("$dir/password.txt"));
+$emails = trim(file_get_contents("$dir/emails.txt"));
 
 $result = doCurl('https://monitor.enecsys.net');
 
