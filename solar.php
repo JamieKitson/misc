@@ -13,6 +13,7 @@ $dir = dirname(__FILE__);
 $user = trim(file_get_contents("$dir/username.txt"));
 $pass = trim(file_get_contents("$dir/password.txt"));
 $emails = trim(file_get_contents("$dir/emails.txt"));
+$log = "$dir/log.txt";
 
 $result = doCurl('https://monitor.enecsys.net');
 
@@ -48,6 +49,8 @@ switch ($unit) {
   case "kW": $power *= 1000; break;
   default: $msg = "Warning: unknown unit: $unit";
 }
+
+file_put_contents($log, date("d-H:i:s "). "$power\n", FILE_APPEND);
 
 if (($power < $warn) || !empty($msg))
   mail($emails, "Solar Power Level", "Solar power level is currently at $power watts. $msg");
