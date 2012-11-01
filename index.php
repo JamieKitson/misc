@@ -9,6 +9,13 @@
             ['date', 10, 12, 14],
 <?php
 
+/*
+   A web page to display the results of my solar.php script. It assumes that you
+   run the script three times a day (at 10, 12 and 14 hours), alter the line above
+   if this is not the case. The log file is assumed to be ../../log.txt, edit the
+   line bellow if this is not the case.
+*/
+
 error_reporting(E_ALL);
 ini_set('display_errors', '1');
 
