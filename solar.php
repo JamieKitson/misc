@@ -15,45 +15,68 @@ $pass = trim(file_get_contents("$dir/password.txt"));
 $emails = trim(file_get_contents("$dir/emails.txt"));
 $log = "$dir/log.txt";
 
-$result = doCurl('https://monitor.enecsys.net');
+$tries = 3;
 
-$DOM = new DOMDocument;
-@$DOM->loadHTML($result);
+while ($tries > 0)
+{
 
-$items = $DOM->getElementsByTagName('input');
+  $result = doCurl('https://monitor.enecsys.net');
 
-$data = array('login1$UserName' => $user, 'login1$Password' => $pass);
+  $DOM = new DOMDocument;
+  @$DOM->loadHTML($result);
 
-for ($i = 0; $i < $items->length; $i++)
-  if ($items->item($i)->getAttribute('type') == 'hidden')
-    $data[$items->item($i)->getAttribute('name')] = $items->item($i)->getAttribute('value');
+  $items = $DOM->getElementsByTagName('input');
 
-$data['__EVENTTARGET'] = 'login1$lnkLogin';
+  $data = array('login1$UserName' => $user, 'login1$Password' => $pass);
 
-$extras = array(CURLOPT_POST => true, CURLOPT_POSTFIELDS => $data);
+  for ($i = 0; $i < $items->length; $i++)
+    if ($items->item($i)->getAttribute('type') == 'hidden')
+      $data[$items->item($i)->getAttribute('name')] = $items->item($i)->getAttribute('value');
 
-$result = doCurl('https://monitor.enecsys.net', $extras);
+  $data['__EVENTTARGET'] = 'login1$lnkLogin';
 
-$result = doCurl('https://monitor.enecsys.net/ews/InstallationService.asmx/GetCurrentInstallationStatus');
+  $extras = array(CURLOPT_POST => true, CURLOPT_POSTFIELDS => $data);
 
-            $p = xml_parser_create();
-            xml_parse_into_struct($p, $result, $results, $index);
-            xml_parser_free($p);
+  $result = doCurl('https://monitor.enecsys.net', $extras);
 
-//echo print_r($results);
-$power = $results[$index['CURRENTACPOWER'][0]]['value'];
-$unit = $results[$index['CURRENTACPOWERUNIT'][0]]['value'];
-$msg = "";
-switch ($unit) {
-  case "W": break;
-  case "kW": $power *= 1000; break;
-  default: $msg = "Warning: unknown unit: $unit";
+  $result = doCurl('https://monitor.enecsys.net/ews/InstallationService.asmx/GetCurrentInstallationStatus');
+
+  $p = xml_parser_create();
+  xml_parse_into_struct($p, $result, $results, $index);
+  xml_parser_free($p);
+
+  //echo print_r($results);
+  $power = @$results[$index['CURRENTACPOWER'][0]]['value'];
+  $unit = @$results[$index['CURRENTACPOWERUNIT'][0]]['value'];
+  
+  if ($power > "") 
+  {
+    $msg = "";
+    switch ($unit) 
+    {
+      case "W": break;
+      case "kW": $power *= 1000; break;
+      default: $msg = "Warning: unknown unit: $unit";
+    }
+
+    file_put_contents($log, date("Y-m-dTH:i:s "). "$power\n", FILE_APPEND);
+
+//    echo $power;
+
+    if (($power < $warn) || !empty($msg))
+    {
+      $m = "Solar power level is currently at $power watts. $msg";
+      mail($emails, "Solar Power Level", $m);
+//      echo $m;
+    }    
+    break;
+  }
+  
+  sleep(30);
+  $tries--;
 }
 
-file_put_contents($log, date("d-H:i:s "). "$power\n", FILE_APPEND);
 
-if (($power < $warn) || !empty($msg))
-  mail($emails, "Solar Power Level", "Solar power level is currently at $power watts. $msg");
 
 function doCurl($url, $extras = array())
 {
