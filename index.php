@@ -6,7 +6,7 @@
       google.setOnLoadCallback(drawChart);
       function drawChart() {
         var data = google.visualization.arrayToDataTable([
-            ['date', 10, 12, 14],
+            ['date', '10am', 'Midday', '2pm'],
 <?php
 
 /*
