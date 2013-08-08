@@ -179,18 +179,27 @@ switch(testFlickr() + 2 * (count($_SERVER['argv']) - 1))
     case 3:
 }
 
-print_r($_SERVER['argv']);
+// print_r($_SERVER['argv']);
 
 $params = Array();
 $params['user_id'] = 'me';
 $params['sort'] = 'date-posted-asc';
 $params['method'] = 'flickr.photos.search';
-$params['per_page'] = 2;
+$params['per_page'] = 5;
 $params['page'] = 1;
-$params['extras'] = 'description,original_format,geo,tags,machine_tags';
+$params['extras'] = 'description,original_format,geo,tags,machine_tags,date_taken';
 
 $rsp = flickrCall($params);
 $rsp = unserialize($rsp);
+
 print_r($rsp);
+
+
+foreach($rsp['photos']['photo'] as $p)
+{
+    $url = sprintf("http://farm%s.staticflickr.com/%s/%s_%s_o.%s", 
+        $p['farm'], $p['server'], $p['id'], $p['originalsecret'], $p['originalformat']);
+    echo $url.PHP_EOL;
+}
 
 ?>
