@@ -1,17 +1,36 @@
 <?php
 
-include_once('flickrapisecret.php');
+define("TITLE_TAG", "Exif.Image.ImageDescription");
+define("DESCRIPTION_TAG", "Exif.Photo.UserComment");
+define("TAG_TAG", "Iptc.Application2.Keywords");
+define("LATITUDE_TAG", "Exif.GPSInfo.GPSLatitude");
+define("LONGITUDE_TAG", "Exif.GPSInfo.GPSLongitude");
+define("TOKEN", "token");
+define("SECRET", "secret");
+define("DIRECTORY_FORMAT", "Y-m");
+define("FILENAME_FORMAT", "d-H-i-\T\I\T\L\E-\I\D");
+
+function getFileName($photo)
+{
+    $filename = date(FILENAME_FORMAT, strtotime($photo['datetaken']));
+    $title = sanitize($photo['title']); 
+    $filename = str_replace("TITLE", $title, $filename);
+    $filename = str_replace("ID", $photo['id'], $filename);
+    $filename = $filename.'.'.$photo['originalformat'];
+    return $filename;
+}
+
+include('flickrapisecret.php');
 
 function flickrCall($params, $uri = "rest")
 {
-
         $params['oauth_consumer_key'] = 'b51ae39f6b166d53ea1c4bd4751de3e0';
         $params['oauth_nonce'] = rand(0, 99999999);
         $params['oauth_timestamp'] = date('U');
         $params['oauth_signature_method'] = 'HMAC-SHA1';
         $params['oauth_version'] = '1.0';
         $params['format'] = 'php_serial';
-        $token = getToken();
+        $token = getFiled(TOKEN);
         if ($token != '')
           $params['oauth_token'] = $token;
 
@@ -28,7 +47,7 @@ function flickrCall($params, $uri = "rest")
 
         $base = "GET&".urlencode($url)."&".urlencode($p);
 
-        $tokensecret = getSecret();
+        $tokensecret = getFiled(SECRET);
 
         $sig = urlencode(base64_encode(hash_hmac('sha1', $base, $GLOBALS['apisecret']."&$tokensecret", true)));
 
@@ -46,7 +65,7 @@ function flickrCall($params, $uri = "rest")
 
 function testFlickr()
 {
-  if ((getToken() != '') && (getSecret() != ''))
+  if ((getFiled(TOKEN) != '') && (getFiled(SECRET) != ''))
   {
     $rsp = flickrCall(Array('method' => 'flickr.test.login'));
     $p = unserialize($rsp);
@@ -70,26 +89,6 @@ function setFiled($name, $value)
 {
     $GLOBALS[$name] = $value;
     file_put_contents($name, $value);
-}
-
-function getToken()
-{
-    return getFiled('token');
-}
-
-function setToken($token)
-{
-    setFiled('token', $token);
-}
-
-function getSecret()
-{
-    return getFiled('secret');
-}
-
-function setSecret($secret)
-{
-    setFiled('secret', $secret);
 }
 
 function gzipCall($url)
@@ -118,8 +117,8 @@ function gzipCall($url)
 
 function getRequestToken()
 {
-    setToken('');
-    setSecret('');
+    setFiled(TOKEN, '');
+    setFiled(SECRET, '');
   $params = Array();
   $params['oauth_callback'] = 'http://flickr.com';
   $rsp = flickrCall($params, 'oauth/request_token');
@@ -127,7 +126,7 @@ function getRequestToken()
   if (!array_key_exists('oauth_callback_confirmed', $q) || $q['oauth_callback_confirmed'] != true)
     exit("Flickr didn't return oauth_callback_confirmed true: $rsp");
   $url = 'http://www.flickr.com/services/oauth/authorize?perms=read&oauth_token='.$q['oauth_token'];
-  setSecret($q['oauth_token_secret']);
+  setFiled(SECRET, $q['oauth_token_secret']);
 
     echo PHP_EOL."Please visit the URL below using your browser. Once you have confirmed access copy " .
         "the new URL from your browser, paste it below and press enter:".PHP_EOL.PHP_EOL;
@@ -155,46 +154,41 @@ parse_str($line, $params);
         exit("oauth_problem: ".$q['oauth_problem'].PHP_EOL);
     if (!(isset($q['oauth_token']) && isset($q['oauth_token_secret'])))
         exit("Flickr response did not contain both oauth_token and oauth_token_secret".PHP_EOL);
-    setToken($q['oauth_token']);
-    setSecret($q['oauth_token_secret']);
+    setFiled(TOKEN, $q['oauth_token']);
+    setFiled(SECRET, $q['oauth_token_secret']);
 
-    if (!testFlickr())
-        throw new Exception('Login test failed.');
+    echo PHP_EOL;
+    if (testFlickr())
+        echo "Success";
+    else
+        echo "Login test failed!";
+    echo PHP_EOL;
 
 }
 
 function exivCmd($cmd, $file)
 {
+    $cmd = str_replace('"', '\"', $cmd);
 //    echo $cmd.PHP_EOL;
-    exiv("-M'$cmd'", $file);
+    exiv('-M"'.$cmd.'"', $file);
 }
 
 function exiv($params, $file)
 {
-    exec("exiv2 $params $file", $output, $return);
+    exec("exiv2 -q $params $file", $output, $return);
     return $output;
 }
 
-function latLon($deg, $latLon, $pos, $neg, $file)
+function latLon($deg, $tag, $pos, $neg, $file)
 {
-
-/*    switch(($latLon == 'Lat') + 2 * ($deg < 0))
-    {
-        case 0: $sign = 'N'; break;
-        case 1: $sign = 'E'; break;
-        case 2: $sign = 'S'; break;
-        case 3: $sign = 'W'; break;
-    }*/
-//    echo PHP_EOL.$deg.PHP_EOL;
-
     if ($deg < 0)
         $sign = $neg;
     else
         $sign = $pos;
     list($int, $frac) = explode('.', trim(abs($deg), '0'));
     $ration = ltrim($int . $frac, '0') . '/1' . str_repeat('0', strlen($frac));
-    exivCmd("set Exif.GPSInfo.GPS".$latLon."itude $ration", $file);
-    exivCmd("set Exif.GPSInfo.GPS".$latLon."itudeRef $sign", $file);
+    exivCmd("set $tag $ration", $file);
+    exivCmd("set ".$tag."Ref $sign", $file);
 }
 
 function getTags($tag, $filename)
@@ -204,7 +198,22 @@ function getTags($tag, $filename)
 
 function hasLatLon($filename)
 {
-    return count(getTags('Exif.GPSInfo.GPSLatitude -g Exif.GPSInfo.GPSLongitude', $filename)) > 0;
+    return count(getTags(LATITUDE_TAG.' -g '.LONGITUDE_TAG, $filename)) > 0;
+}
+
+function sanitize($string) // , $force_lowercase = false, $anal = false) 
+{
+    $strip = array("~", "`", "!", "@", "#", "$", "%", "^", "&", "*", "(", ")", "_", "=", "+", "[", "{", "]",
+                   "}", "\\", "|", ";", ":", "\"", "'", "&#8216;", "&#8217;", "&#8220;", "&#8221;", "&#8211;", "&#8212;",
+                   "â€”", "â€“", ",", "<", ".", ">", "/", "?");
+    $clean = trim(str_replace($strip, "-", strip_tags($string)));
+    $clean = preg_replace('/\s+/', "-", $clean);
+/*    $clean = ($anal) ? preg_replace("/[^a-zA-Z0-9]/", "", $clean) : $clean ;
+    return ($force_lowercase) ?
+        (function_exists('mb_strtolower')) ?
+            mb_strtolower($clean, 'UTF-8') :
+            strtolower($clean) : */
+    return    $clean;
 }
 
 switch(testFlickr() + 2 * (count($_SERVER['argv']) - 1))
@@ -229,7 +238,7 @@ $params = Array();
 $params['user_id'] = 'me';
 $params['sort'] = 'date-posted-asc';
 $params['method'] = 'flickr.photos.search';
-$params['per_page'] = 5;
+$params['per_page'] = 9;
 $params['page'] = 1;
 $params['extras'] = 'description,original_format,geo,tags,machine_tags,date_taken';
 
@@ -238,37 +247,38 @@ $rsp = unserialize($rsp);
 
 print_r($rsp);
 
+$basedir = $_SERVER['argv'][1];
 
 foreach($rsp['photos']['photo'] as $p)
 {
     echo 'Processing photo '.$p['id'].PHP_EOL;
     $url = sprintf("http://farm%s.staticflickr.com/%s/%s_%s_o.%s", 
         $p['farm'], $p['server'], $p['id'], $p['originalsecret'], $p['originalformat']);
-    $dir = $_SERVER['argv'][1].DIRECTORY_SEPARATOR.date('Y-m', strtotime($p['datetaken']));
+    $dir = $basedir.DIRECTORY_SEPARATOR.date(DIRECTORY_FORMAT, strtotime($p['datetaken']));
     if (!is_dir($dir) && !mkdir($dir, 0755, true))
         throw new Exception("Could not create directorry $dir");
-    $filename = $dir.DIRECTORY_SEPARATOR.date('d-h-i-', strtotime($p['datetaken'])).$p['id'].'.'.$p['originalformat'];
+    $filename = $dir.DIRECTORY_SEPARATOR.getFileName($p);
     echo "Saving to $filename".PHP_EOL;
-    // copy($url, $filename);
+    copy($url, $filename);
     if ($p['originalformat'] == 'gif')
     {
-        echo "Can't tag gif.".PHP_EOL;
+        echo "Can't tag gifs.".PHP_EOL;
         continue;
     }
-    $existingtags = getTags("Iptc.Application2.Keywords", $filename);
+    $existingtags = getTags(TAG_TAG, $filename);
     foreach(explode(' ', $p['tags']) as $tag)
     {
         if (!in_array($tag, $existingtags))
-            exivCmd("add Iptc.Application2.Keywords String $tag", $filename);
+            exivCmd("add ".TAG_TAG." String $tag", $filename);
     }
 //    echo gettype($p['latitude']);
     if ((($p['latitude'] !== 0) || ($p['longitude'] !== 0)) && !hasLatLon($filename)) 
     {
-        latLon($p['latitude'], 'Lat', 'N', 'S', $filename);
-        latLon($p['longitude'], 'Long', 'E', 'W', $filename);
+        latLon($p['latitude'], LATITUDE_TAG, 'N', 'S', $filename);
+        latLon($p['longitude'], LONGITUDE_TAG, 'E', 'W', $filename);
     }
-    exivCmd("set Exif.Image.ImageDescription ".$p['title'], $filename);
-    exivCmd("set Exif.Photo.UserComment ".$p['description']['_content'], $filename);
+    exivCmd("set ".TITLE_TAG." ".$p['title'], $filename);
+    exivCmd("set ".DESCRIPTION_TAG." ".$p['description']['_content'], $filename);
 
 }
 
