@@ -163,6 +163,50 @@ parse_str($line, $params);
 
 }
 
+function exivCmd($cmd, $file)
+{
+//    echo $cmd.PHP_EOL;
+    exiv("-M'$cmd'", $file);
+}
+
+function exiv($params, $file)
+{
+    exec("exiv2 $params $file", $output, $return);
+    return $output;
+}
+
+function latLon($deg, $latLon, $pos, $neg, $file)
+{
+
+/*    switch(($latLon == 'Lat') + 2 * ($deg < 0))
+    {
+        case 0: $sign = 'N'; break;
+        case 1: $sign = 'E'; break;
+        case 2: $sign = 'S'; break;
+        case 3: $sign = 'W'; break;
+    }*/
+//    echo PHP_EOL.$deg.PHP_EOL;
+
+    if ($deg < 0)
+        $sign = $neg;
+    else
+        $sign = $pos;
+    list($int, $frac) = explode('.', trim(abs($deg), '0'));
+    $ration = ltrim($int . $frac, '0') . '/1' . str_repeat('0', strlen($frac));
+    exivCmd("set Exif.GPSInfo.GPS".$latLon."itude $ration", $file);
+    exivCmd("set Exif.GPSInfo.GPS".$latLon."itudeRef $sign", $file);
+}
+
+function getTags($tag, $filename)
+{
+    return exiv("-g $tag -P v", $filename);
+}
+
+function hasLatLon($filename)
+{
+    return count(getTags('Exif.GPSInfo.GPSLatitude -g Exif.GPSInfo.GPSLongitude', $filename)) > 0;
+}
+
 switch(testFlickr() + 2 * (count($_SERVER['argv']) - 1))
 {
     case 0:
@@ -197,9 +241,35 @@ print_r($rsp);
 
 foreach($rsp['photos']['photo'] as $p)
 {
+    echo 'Processing photo '.$p['id'].PHP_EOL;
     $url = sprintf("http://farm%s.staticflickr.com/%s/%s_%s_o.%s", 
         $p['farm'], $p['server'], $p['id'], $p['originalsecret'], $p['originalformat']);
-    echo $url.PHP_EOL;
+    $dir = $_SERVER['argv'][1].DIRECTORY_SEPARATOR.date('Y-m', strtotime($p['datetaken']));
+    if (!is_dir($dir) && !mkdir($dir, 0755, true))
+        throw new Exception("Could not create directorry $dir");
+    $filename = $dir.DIRECTORY_SEPARATOR.date('d-h-i-', strtotime($p['datetaken'])).$p['id'].'.'.$p['originalformat'];
+    echo "Saving to $filename".PHP_EOL;
+    // copy($url, $filename);
+    if ($p['originalformat'] == 'gif')
+    {
+        echo "Can't tag gif.".PHP_EOL;
+        continue;
+    }
+    $existingtags = getTags("Iptc.Application2.Keywords", $filename);
+    foreach(explode(' ', $p['tags']) as $tag)
+    {
+        if (!in_array($tag, $existingtags))
+            exivCmd("add Iptc.Application2.Keywords String $tag", $filename);
+    }
+//    echo gettype($p['latitude']);
+    if ((($p['latitude'] !== 0) || ($p['longitude'] !== 0)) && !hasLatLon($filename)) 
+    {
+        latLon($p['latitude'], 'Lat', 'N', 'S', $filename);
+        latLon($p['longitude'], 'Long', 'E', 'W', $filename);
+    }
+    exivCmd("set Exif.Image.ImageDescription ".$p['title'], $filename);
+    exivCmd("set Exif.Photo.UserComment ".$p['description']['_content'], $filename);
+
 }
 
 ?>
