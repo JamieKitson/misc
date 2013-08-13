@@ -11,8 +11,8 @@ and email an alert if it falls below a certain level. See also
 index.php builds the resultant log file into a google chart, see for example:
 <http://solar.kitten-x.com>
 
-Flickr Backup
-=============
+Flickr Backup/Migration Script
+==============================
 
 This script attempts to download your pictures from Flickr and add
 tags, geo-tags, title, description ~~and comments~~ to the EXIF data. It
@@ -21,6 +21,7 @@ is an attempt at a more useful version of
 API does not offer a way to check for updates to images this is not an
 incremental, cumulative or differential backup tool, ie, it will not
 automatically backup changes to your photos, eg, added tags, ~~comments,~~
-editted or replaced photos will not be automatically backed up.
+editted or replaced photos will not be automatically backed up. It is
+probably more useful as a migration tool.
 With thanks to [Seth Golub](http://www.sethoscope.net/geophoto/) for 
 the EXIF GPS info.
