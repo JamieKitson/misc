@@ -260,11 +260,11 @@ function hasLatLon($filename)
 
 function sanitize($string) // , $force_lowercase = false, $anal = false) 
 {
-    $strip = array("~", "`", "!", "@", "#", "$", "%", "^", "&", "*", "(", ")", "_", "=", "+", "[", "{", "]",
+    $strip = array("~", "`", "!", "@", "#", "$", "%", "^", "&", "*", "(", ")", "_", "=", "+", "[", "{", "]", " ",
                    "}", "\\", "|", ";", ":", "\"", "'", "&#8216;", "&#8217;", "&#8220;", "&#8221;", "&#8211;", "&#8212;",
                    "â€”", "â€“", ",", "<", ".", ">", "/", "?");
     $clean = trim(str_replace($strip, "-", strip_tags($string)));
-    $clean = preg_replace('/\s+/', "-", $clean);
+    $clean = collapseChar($clean, '-', '-');
 /*    $clean = ($anal) ? preg_replace("/[^a-zA-Z0-9]/", "", $clean) : $clean ;
     return ($force_lowercase) ?
         (function_exists('mb_strtolower')) ?
@@ -279,6 +279,11 @@ function file_contents_if_exists($filename)
     if (file_exists($filename) !== false)
         return file_get_contents($filename);
     return '';
+}
+
+function collapseChar($string, $char, $replacement)
+{
+    return preg_replace('/'.$char.'+/', $replacement, $string);
 }
 
 function runBackup()
@@ -351,7 +356,7 @@ function runBackup()
                 {
                     foreach($comments['comments']['comment'] as $comment)
                     {
-                        $description .= PHP_EOL.$comment['authorname'].': '.str_replace(array("\n", "\r"), " ", $comment['_content']);
+                        $description .= PHP_EOL.$comment['authorname'].': '.collapseChar($comment['_content'], '\s', ' ');
                     }
                 }
 
