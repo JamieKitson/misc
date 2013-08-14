@@ -1,4 +1,4 @@
-<?
+<?php
 
 /*
    A script to poll the SOS.org.uk website and email posts by my dad
