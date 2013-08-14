@@ -2,21 +2,23 @@
 
 include('flickrapisecret.php');
 
-// Backup directory, default is ~/flickrBackup. Include trailing slash
+// Backup directory, default is ~/flickrBackup/ Include trailing slash
 define("BASE_DIR", $_SERVER['HOME'].DIRECTORY_SEPARATOR.'flickrBackup'.DIRECTORY_SEPARATOR);
 
 // By default files will be named DAY-HOUR-MINUTE-TITLE-FLICKRID according to when photo was taken
+// See also getFileName()
 define("FILENAME_FORMAT", 'd-H-i-\T\I\T\L\E-\I\D');
-// By default files will be devided into directories by YEAR-MONTH according to when photo was taken
+// By default files will be divided into directories by YEAR-MONTH according to when photo was taken
 define("DIRECTORY_FORMAT", "Y-m");
 
 // Maximum number of photos to backup per run. 0 for all. Useful for limitting bandwidth/run time
 define("MAX_BATCH", 0);
 
-// Maximum upload date of backed up photos. This is useful for not backing up photos that might be updated
-// eg use strtotime("-1 month")
+// Maximum upload date of backed up photos. This is useful for not backing up photos that might be 
+// updated at a later date. Example useage one month in the past: strtotime("-1 month")
 define("MAX_DATE", time());
 
+// exiv binary
 define("EXIV", "/usr/bin/exiv2");
 
 // EXIF Tags. You probably don't want to change these
@@ -26,7 +28,7 @@ define("TAG_TAG", "Iptc.Application2.Keywords");
 define("LATITUDE_TAG", "Exif.GPSInfo.GPSLatitude");
 define("LONGITUDE_TAG", "Exif.GPSInfo.GPSLongitude");
 
-// Config files. You probably don't need to change these
+// Cache filenames. You probably don't need to change these
 define("TOKEN_FILE", "token.txt");
 define("SECRET_FILE", "secret.txt");
 define("SEEN_FILE", "seen.txt");
@@ -43,7 +45,7 @@ $run = (count($_SERVER['argv']) == 2) && ($_SERVER['argv'][1] == 'run');
 switch(testFlickr() + 2 * $run)
 {
     case 0:
-        getRequestToken();
+        authenticate();
         exit;
         break;
     case 1:
@@ -171,7 +173,7 @@ function gzipCall($url)
   return $xmlresponse;
 }
 
-function getRequestToken()
+function authenticate()
 {
     setFiled(TOKEN_FILE, '');
     setFiled(SECRET_FILE, '');
@@ -288,13 +290,7 @@ function runBackup()
     $params['extras'] = 'description,original_format,geo,tags,machine_tags,date_taken,date_upload';
     $params['min_upload_date'] = file_contents_if_exists(LAST_SEEN_FILE);
     $params['max_upload_date'] = MAX_DATE;
-    /*
-    if (MAX_BATCH > 0)
-        $params['per_page'] = MAX_BATCH;
-    else
-        $params['per_page'] = 500;
-    */
-    $params['per_page'] = 5;
+//    $params['per_page'] = 5;
 
     $params['page'] = 1;
     $count = 0;
@@ -313,7 +309,7 @@ function runBackup()
 
         foreach($rsp['photos']['photo'] as $p)
         {
-            echo 'Processing photo '.$p['id'].' '.$p['title'].PHP_EOL;
+            echo 'Copying photo '.$p['id'].' '.$p['title'].PHP_EOL;
             if (strpos($seen, $p['id']) !== false)
             {
                 echo 'Already seen photo '.$p['id'].', skipping.'.PHP_EOL;
