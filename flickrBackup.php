@@ -1,14 +1,62 @@
 <?php
 
+include('flickrapisecret.php');
+
+// Backup directory, default is ~/flickrBackup. Include trailing slash
+define("BASE_DIR", $_SERVER['HOME'].DIRECTORY_SEPARATOR.'flickrBackup'.DIRECTORY_SEPARATOR);
+
+// By default files will be named DAY-HOUR-MINUTE-TITLE-FLICKRID according to when photo was taken
+define("FILENAME_FORMAT", 'd-H-i-\T\I\T\L\E-\I\D');
+// By default files will be devided into directories by YEAR-MONTH according to when photo was taken
+define("DIRECTORY_FORMAT", "Y-m");
+
+// Maximum number of photos to backup per run. 0 for all. Useful for limitting bandwidth/run time
+define("MAX_BATCH", 0);
+
+// Maximum upload date of backed up photos. This is useful for not backing up photos that might be updated
+// eg use strtotime("-1 month")
+define("MAX_DATE", time());
+
+define("EXIV", "/usr/bin/exiv2");
+
+// EXIF Tags. You probably don't want to change these
 define("TITLE_TAG", "Exif.Image.ImageDescription");
 define("DESCRIPTION_TAG", "Exif.Photo.UserComment");
 define("TAG_TAG", "Iptc.Application2.Keywords");
 define("LATITUDE_TAG", "Exif.GPSInfo.GPSLatitude");
 define("LONGITUDE_TAG", "Exif.GPSInfo.GPSLongitude");
-define("TOKEN", "token");
-define("SECRET", "secret");
-define("DIRECTORY_FORMAT", "Y-m");
-define("FILENAME_FORMAT", "d-H-i-\T\I\T\L\E-\I\D");
+
+// Config files. You probably don't need to change these
+define("TOKEN_FILE", "token.txt");
+define("SECRET_FILE", "secret.txt");
+define("SEEN_FILE", "seen.txt");
+define("LAST_SEEN_FILE", "lastrun.txt");
+
+if (count($_SERVER['argv']) > 2)
+    exit('Useage: php flickrBackup.php backup/directory [run]'.PHP_EOL);
+
+if (!is_dir(BASE_DIR) && !mkdir(BASE_DIR, 0755, true))
+    throw new Exception("Could not create directorry ".BASE_DIR);
+
+$run = (count($_SERVER['argv']) == 2) && ($_SERVER['argv'][1] == 'run');
+
+switch(testFlickr() + 2 * $run)
+{
+    case 0:
+        getRequestToken();
+        exit;
+        break;
+    case 1:
+        exit('Already logged in. If you want to clear your session delete the token and secret files. '.
+            'To run the backup include "run" as parameter.'.PHP_EOL);
+        break;
+    case 2:
+        throw new Exception("Can't run, need interactive log in.");
+        break;
+    case 3:
+        runBackup();
+        break;
+}
 
 function getFileName($photo)
 {
@@ -20,55 +68,60 @@ function getFileName($photo)
     return $filename;
 }
 
-include('flickrapisecret.php');
-
 function flickrCall($params, $uri = "rest")
 {
-        $params['oauth_consumer_key'] = 'b51ae39f6b166d53ea1c4bd4751de3e0';
-        $params['oauth_nonce'] = rand(0, 99999999);
-        $params['oauth_timestamp'] = date('U');
-        $params['oauth_signature_method'] = 'HMAC-SHA1';
-        $params['oauth_version'] = '1.0';
-        $params['format'] = 'php_serial';
-        $token = getFiled(TOKEN);
-        if ($token != '')
-          $params['oauth_token'] = $token;
+    $params['oauth_consumer_key'] = 'b51ae39f6b166d53ea1c4bd4751de3e0';
+    $params['oauth_nonce'] = rand(0, 99999999);
+    $params['oauth_timestamp'] = date('U');
+    $params['oauth_signature_method'] = 'HMAC-SHA1';
+    $params['oauth_version'] = '1.0';
+    $params['format'] = 'php_serial';
+    $token = getFiled(TOKEN_FILE);
+    if ($token != '')
+      $params['oauth_token'] = $token;
 
-        $encoded_params = array();
-        foreach ($params as $k => $v)
-        {
-                $encoded_params[] = urlencode($k).'='.urlencode($v); // "$k=$v"; //
-        }
+    $encoded_params = array();
+    foreach ($params as $k => $v)
+    {
+            $encoded_params[] = urlencode($k).'='.urlencode($v);
+    }
 
-        sort($encoded_params);
-        $p = implode('&', $encoded_params);
+    sort($encoded_params);
+    $p = implode('&', $encoded_params);
 
-        $url = "http://api.flickr.com/services/$uri";
+    $url = "http://api.flickr.com/services/$uri";
 
-        $base = "GET&".urlencode($url)."&".urlencode($p);
+    $base = "GET&".urlencode($url)."&".urlencode($p);
 
-        $tokensecret = getFiled(SECRET);
+    $tokensecret = getFiled(SECRET_FILE);
 
-        $sig = urlencode(base64_encode(hash_hmac('sha1', $base, $GLOBALS['apisecret']."&$tokensecret", true)));
+    $sig = urlencode(base64_encode(hash_hmac('sha1', $base, $GLOBALS['apisecret']."&$tokensecret", true)));
 
-        $url .= "?$p&oauth_signature=$sig";
+    $url .= "?$p&oauth_signature=$sig";
 
 //        echo $url."\n";
 
-        $rsp = gzipCall($url);
+    $rsp = gzipCall($url);
 
 //        echo $rsp."\n"; 
 
+    if ($uri == 'rest')
+        return unserialize($rsp);
+    elseif ($uri = 'oauth/request_token')
+    {
+      parse_str($rsp, $q);
+      return $q;
+    }
+    else
         return $rsp;
-
+      
 }
 
 function testFlickr()
 {
-  if ((getFiled(TOKEN) != '') && (getFiled(SECRET) != ''))
+  if ((getFiled(TOKEN_FILE) != '') && (getFiled(SECRET_FILE) != ''))
   {
-    $rsp = flickrCall(Array('method' => 'flickr.test.login'));
-    $p = unserialize($rsp);
+    $p = flickrCall(Array('method' => 'flickr.test.login'));
     if (isset($p['stat']) && ($p['stat'] == 'ok'))
         return true;
 //      return str_replace("@", "_", $p['user']['id']);
@@ -80,15 +133,18 @@ function getFiled($name)
 {
     if (isset($GLOBALS[$name]))
         return $GLOBALS[$name];
-    if (file_exists($name))
-        return trim(file_get_contents($name));
+    if (file_exists(BASE_DIR.$name))
+    {
+        $GLOBALS[$name] = trim(file_get_contents(BASE_DIR.$name));
+        return $GLOBALS[$name];
+    }
     return '';
 }
 
 function setFiled($name, $value)
 {
     $GLOBALS[$name] = $value;
-    file_put_contents($name, $value);
+    file_put_contents(BASE_DIR.$name, $value);
 }
 
 function gzipCall($url)
@@ -117,45 +173,42 @@ function gzipCall($url)
 
 function getRequestToken()
 {
-    setFiled(TOKEN, '');
-    setFiled(SECRET, '');
-  $params = Array();
-  $params['oauth_callback'] = 'http://flickr.com';
-  $rsp = flickrCall($params, 'oauth/request_token');
-  parse_str($rsp, $q);
-  if (!array_key_exists('oauth_callback_confirmed', $q) || $q['oauth_callback_confirmed'] != true)
-    exit("Flickr didn't return oauth_callback_confirmed true: $rsp");
-  $url = 'http://www.flickr.com/services/oauth/authorize?perms=read&oauth_token='.$q['oauth_token'];
-  setFiled(SECRET, $q['oauth_token_secret']);
+    setFiled(TOKEN_FILE, '');
+    setFiled(SECRET_FILE, '');
+    $params = Array();
+    $params['oauth_callback'] = 'http://flickr.com';
+    $q = flickrCall($params, 'oauth/request_token');
+    if (!array_key_exists('oauth_callback_confirmed', $q) || $q['oauth_callback_confirmed'] != true)
+        exit("Flickr didn't return oauth_callback_confirmed true: $rsp");
+    $url = 'http://www.flickr.com/services/oauth/authorize?perms=read&oauth_token='.$q['oauth_token'];
+    setFiled(SECRET_FILE, $q['oauth_token_secret']);
 
     echo PHP_EOL."Please visit the URL below using your browser. Once you have confirmed access copy " .
         "the new URL from your browser, paste it below and press enter:".PHP_EOL.PHP_EOL;
 
-  echo $url.PHP_EOL.PHP_EOL;
+    echo $url.PHP_EOL.PHP_EOL;
 
-  $handle = fopen ("php://stdin","r");
-  $line = trim(fgets($handle));
+    $handle = fopen ("php://stdin","r");
+    $line = trim(fgets($handle));
 
-  if (strpos($line, '?') !== false)
-      $line = explode('?', $line)[1];
+    if (strpos($line, '?') !== false)
+        $line = explode('?', $line)[1];
 
-parse_str($line, $params);
+    parse_str($line, $params);
 
 //    print_r($params);
 
     if (!(isset($params['oauth_token']) && isset($params['oauth_verifier'])))
         exit("Return URL did not contain both oauth_token and oauth_verifier".PHP_EOL);
 
-    $rsp = flickrCall($params, 'oauth/access_token');
-//    echo $rsp;
-    parse_str($rsp, $q);
+    $q = flickrCall($params, 'oauth/access_token');
 //    print_r($q);
     if (isset($q['oauth_problem']))
         exit("oauth_problem: ".$q['oauth_problem'].PHP_EOL);
     if (!(isset($q['oauth_token']) && isset($q['oauth_token_secret'])))
         exit("Flickr response did not contain both oauth_token and oauth_token_secret".PHP_EOL);
-    setFiled(TOKEN, $q['oauth_token']);
-    setFiled(SECRET, $q['oauth_token_secret']);
+    setFiled(TOKEN_FILE, $q['oauth_token']);
+    setFiled(SECRET_FILE, $q['oauth_token_secret']);
 
     echo PHP_EOL;
     if (testFlickr())
@@ -170,12 +223,13 @@ function exivCmd($cmd, $file)
 {
     $cmd = str_replace('"', '\"', $cmd);
 //    echo $cmd.PHP_EOL;
-    exiv('-M"'.$cmd.'"', $file);
+//    exiv('-M"'.$cmd.'"', $file);
+    return ' -M"'.$cmd.'" ';
 }
 
 function exiv($params, $file)
 {
-    exec("exiv2 -q $params $file", $output, $return);
+    exec(EXIV." -q $params $file", $output, $return);
     return $output;
 }
 
@@ -187,8 +241,9 @@ function latLon($deg, $tag, $pos, $neg, $file)
         $sign = $pos;
     list($int, $frac) = explode('.', trim(abs($deg), '0'));
     $ration = ltrim($int . $frac, '0') . '/1' . str_repeat('0', strlen($frac));
-    exivCmd("set $tag $ration", $file);
-    exivCmd("set ".$tag."Ref $sign", $file);
+    $res = exivCmd("set $tag $ration", $file);
+    $res .= exivCmd("set ".$tag."Ref $sign", $file);
+    return $res;
 }
 
 function getTags($tag, $filename)
@@ -216,70 +271,105 @@ function sanitize($string) // , $force_lowercase = false, $anal = false)
     return    $clean;
 }
 
-switch(testFlickr() + 2 * (count($_SERVER['argv']) - 1))
+function file_contents_if_exists($filename)
 {
-    case 0:
-        getRequestToken();
-        exit;
-        break;
-    case 1:
-        exit('Already logged in. If you want to clear your session delete the token and secret files. '.
-            'To run the backup include a directory as a parameter.'.PHP_EOL);
-        break;
-    case 2:
-        throw new Exception("Can't run, need interactive log in.");
-        break;
-    case 3:
+    $filename = BASE_DIR.$filename;
+    if (file_exists($filename) !== false)
+        return file_get_contents($filename);
+    return '';
 }
 
-// print_r($_SERVER['argv']);
-
-$params = Array();
-$params['user_id'] = 'me';
-$params['sort'] = 'date-posted-asc';
-$params['method'] = 'flickr.photos.search';
-$params['per_page'] = 9;
-$params['page'] = 1;
-$params['extras'] = 'description,original_format,geo,tags,machine_tags,date_taken';
-
-$rsp = flickrCall($params);
-$rsp = unserialize($rsp);
-
-print_r($rsp);
-
-$basedir = $_SERVER['argv'][1];
-
-foreach($rsp['photos']['photo'] as $p)
+function runBackup()
 {
-    echo 'Processing photo '.$p['id'].PHP_EOL;
-    $url = sprintf("http://farm%s.staticflickr.com/%s/%s_%s_o.%s", 
-        $p['farm'], $p['server'], $p['id'], $p['originalsecret'], $p['originalformat']);
-    $dir = $basedir.DIRECTORY_SEPARATOR.date(DIRECTORY_FORMAT, strtotime($p['datetaken']));
-    if (!is_dir($dir) && !mkdir($dir, 0755, true))
-        throw new Exception("Could not create directorry $dir");
-    $filename = $dir.DIRECTORY_SEPARATOR.getFileName($p);
-    echo "Saving to $filename".PHP_EOL;
-    copy($url, $filename);
-    if ($p['originalformat'] == 'gif')
-    {
-        echo "Can't tag gifs.".PHP_EOL;
-        continue;
-    }
-    $existingtags = getTags(TAG_TAG, $filename);
-    foreach(explode(' ', $p['tags']) as $tag)
-    {
-        if (!in_array($tag, $existingtags))
-            exivCmd("add ".TAG_TAG." String $tag", $filename);
-    }
-//    echo gettype($p['latitude']);
-    if ((($p['latitude'] !== 0) || ($p['longitude'] !== 0)) && !hasLatLon($filename)) 
-    {
-        latLon($p['latitude'], LATITUDE_TAG, 'N', 'S', $filename);
-        latLon($p['longitude'], LONGITUDE_TAG, 'E', 'W', $filename);
-    }
-    exivCmd("set ".TITLE_TAG." ".$p['title'], $filename);
-    exivCmd("set ".DESCRIPTION_TAG." ".$p['description']['_content'], $filename);
+    $params = Array();
+    $params['user_id'] = 'me';
+    $params['sort'] = 'date-posted-asc';
+    $params['method'] = 'flickr.photos.search';
+    $params['extras'] = 'description,original_format,geo,tags,machine_tags,date_taken,date_upload';
+    $params['min_upload_date'] = file_contents_if_exists(LAST_SEEN_FILE);
+    $params['max_upload_date'] = MAX_DATE;
+    /*
+    if (MAX_BATCH > 0)
+        $params['per_page'] = MAX_BATCH;
+    else
+        $params['per_page'] = 500;
+    */
+    $params['per_page'] = 5;
 
+    $params['page'] = 1;
+    $count = 0;
+
+    do
+    {
+        if (MAX_BATCH > 0)
+            $params['per_page'] = MAX_BATCH - $count;
+
+
+        $rsp = flickrCall($params);
+
+        // print_r($rsp);
+
+        $seen = file_contents_if_exists(SEEN_FILE);
+
+        foreach($rsp['photos']['photo'] as $p)
+        {
+            echo 'Processing photo '.$p['id'].' '.$p['title'].PHP_EOL;
+            if (strpos($seen, $p['id']) !== false)
+            {
+                echo 'Already seen photo '.$p['id'].', skipping.'.PHP_EOL;
+                continue;
+            }
+            $url = sprintf("http://farm%s.staticflickr.com/%s/%s_%s_o.%s", 
+                $p['farm'], $p['server'], $p['id'], $p['originalsecret'], $p['originalformat']);
+            $dir = BASE_DIR.date(DIRECTORY_FORMAT, strtotime($p['datetaken']));
+            if (!is_dir($dir) && !mkdir($dir, 0755, true))
+                throw new Exception("Could not create directorry $dir");
+            $filename = $dir.DIRECTORY_SEPARATOR.getFileName($p);
+            copy($url, $filename);
+            echo "Saved to $filename".PHP_EOL;
+            $count++;
+            if ($p['originalformat'] == 'gif')
+            {
+                echo "Can't tag gifs.".PHP_EOL;
+            }
+            else
+            {
+                $existingtags = getTags(TAG_TAG, $filename);
+                $cmd = '';
+                foreach(explode(' ', $p['tags']) as $tag)
+                {
+                    if (!in_array($tag, $existingtags))
+                        $cmd .= exivCmd("add ".TAG_TAG." String $tag", $filename);
+                }
+            //    echo gettype($p['latitude']);
+                if ((($p['latitude'] !== 0) || ($p['longitude'] !== 0)) && !hasLatLon($filename)) 
+                {
+                    $cmd .= latLon($p['latitude'], LATITUDE_TAG, 'N', 'S', $filename);
+                    $cmd .= latLon($p['longitude'], LONGITUDE_TAG, 'E', 'W', $filename);
+                }
+                $cmd .= exivCmd("set ".TITLE_TAG." ".$p['title'], $filename);
+                $description = $p['description']['_content'];
+                $comments = flickrCall(array('method' => 'flickr.photos.comments.getList', 'photo_id' => $p['id']));
+
+                if (isset($comments['comments']['comment']))
+                {
+                    foreach($comments['comments']['comment'] as $comment)
+                    {
+                        $description .= PHP_EOL.$comment['authorname'].': '.str_replace(array("\n", "\r"), " ", $comment['_content']);
+                    }
+                }
+
+                $cmd .= exivCmd("set ".DESCRIPTION_TAG." ".$description, $filename);
+                exiv($cmd, $filename);
+            }
+            $seen .= $p['id'].PHP_EOL;
+            file_put_contents(BASE_DIR.SEEN_FILE, $p['id'].PHP_EOL, FILE_APPEND);
+            file_put_contents(BASE_DIR.LAST_SEEN_FILE, $p['dateupload']);
+        }
+
+        $params['page']++;
+
+    } while ( $params['page'] <= $rsp['photos']['pages'] && ( MAX_BATCH == 0 || $count < MAX_BATCH ) ) ;
 }
 
 ?>
