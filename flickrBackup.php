@@ -1,5 +1,12 @@
 <?php
 
+/*
+
+    This script attempts to download your Flickr photos and insert meta data such as 
+    title, description, tags and comments into the jpegs.
+
+*/
+
 include('flickrapisecret.php');
 
 // Backup directory, default is ~/flickrBackup/ Include trailing slash
