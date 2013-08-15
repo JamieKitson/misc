@@ -64,6 +64,7 @@ switch(testFlickr() + 2 * $run)
         throw new Exception("Can't run, need interactive log in.");
         break;
     case 3:
+//        getNewComments();
         runBackup();
         break;
 }
@@ -382,6 +383,23 @@ function runBackup()
         $params['page']++;
 
     } while ( $params['page'] <= $rsp['photos']['pages'] && ( MAX_BATCH == 0 || $count < MAX_BATCH ) ) ;
+}
+
+function getNewComments()
+{
+    $last = file_contents_if_exists(LAST_SEEN_COMMENT_FILE);
+    if ($last == '')
+        exit;
+    $params['timeframe'] = ceil((time() - $last) / 3600) . 'h';
+    $params['method'] = 'flickr.activity.userPhotos';
+    $params['perpage'] = 50;
+    $activity = flickrCall($params);
+    print_r($activity);
+    print_r($params);
+    foreach($activity['items']['item'] as $act)
+    {
+        echo $act['event']['type'];
+    }
 }
 
 ?>
