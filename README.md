@@ -22,9 +22,12 @@ is an attempt at a more useful version of
 Note that because the Flickr
 API does not offer a way to check for updates to images this is not an
 incremental, cumulative or differential backup tool, ie, it will not
-automatically backup changes to your photos, eg, added tags, comments,
+automatically backup changes to your photos, eg, added tags, comments\*,
 editted or replaced photos will not be automatically backed up. It is
-probably more useful as a migration tool.
+probably more useful as a migration tool, or you can use it to backup
+old photos that are not going to be updated, or hopefully commented upon.
+
+\* Unfortunately [flickr.activity.userPhotos is broken](http://tech.groups.yahoo.com/group/yws-flickr/message/8307).
 
 With thanks to [Seth Golub](http://www.sethoscope.net/geophoto/) for 
 the EXIF GPS info.
