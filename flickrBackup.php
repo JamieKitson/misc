@@ -23,7 +23,7 @@ define("MAX_BATCH", 0);
 
 // Maximum upload date of backed up photos. This is useful for not backing up photos that might be 
 // updated at a later date. Example useage one month in the past: strtotime("-1 month")
-define("MAX_DATE", time());
+define("MAX_DATE", strtotime("-1 month"));
 
 // exiv binary
 define("EXIV", "/usr/bin/exiv2");
@@ -168,13 +168,21 @@ function gzipCall($url)
     curl_setopt($ch, CURLOPT_ENCODING, ''); // Apparently enables any encoding and auto decodes
     //curl_setopt($ch, CURLOPT_HTTPHEADER, array("Accept-encoding: gzip"));
     curl_setopt($ch, CURLOPT_HEADER, 0);
-    $xmlresponse = curl_exec($ch);
 
+    $c = 0;
+    do
+    {
+        if ($c == 3)
+            throw new Exception('Curl error: ' . curl_error($ch));
+        $xmlresponse = curl_exec($ch);
+        $c++;
+    } while (curl_errno($ch) != 0);
+/*
     if (curl_errno($ch) != 0)
     {
         throw new Exception('Curl error: ' . curl_error($ch));
     }
-
+*/
     curl_close($ch);
 
 //    echo $xmlresponse;
@@ -301,8 +309,8 @@ function runBackup()
     $params['user_id'] = 'me';
     $params['sort'] = 'date-posted-asc';
     $params['method'] = 'flickr.photos.search';
-    $params['extras'] = 'description,geo,tags,machine_tags,date_taken,date_upload,url_o';
-    $params['min_upload_date'] = file_contents_if_exists(LAST_SEEN_PHOTO_FILE);
+    $params['extras'] = 'description,geo,tags,machine_tags,date_taken,date_upload,url_o,original_format';
+    $params['min_upload_date'] = file_contents_if_exists(LAST_SEEN_PHOTO_FILE) - 1;
     $params['max_upload_date'] = MAX_DATE;
 //    $params['per_page'] = 5;
 
@@ -337,7 +345,16 @@ function runBackup()
             if (!is_dir($dir) && !mkdir($dir, 0755, true))
                 throw new Exception("Could not create directorry $dir");
             $filename = $dir.DIRECTORY_SEPARATOR.getFileName($p);
-            copy($url, $filename);
+            $c = 1;
+            while (!copy($url, $filename))
+            {
+                if ($c == 3)
+                {
+                    $error = error_get_last();
+                    throw new Exception('Copy error: ' . $error['message']);
+                }
+                $c++;
+            }
             echo "Saved to $filename".PHP_EOL;
             $count++;
             if ($p['originalformat'] == 'gif')
@@ -382,7 +399,7 @@ function runBackup()
             }
             $seen[] = $p['id'];
             file_put_contents(SEEN_FILE, $p['id'].PHP_EOL, FILE_APPEND);
-            file_put_contents(LAST_SEEN_PHOTO_FILE, $p['dateupload']);
+            file_put_contents(LAST_SEEN_PHOTO_FILE, $p['dateupload'] - 1);
         }
 
         $params['page']++;
