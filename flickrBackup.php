@@ -36,10 +36,11 @@ define("LATITUDE_TAG", "Exif.GPSInfo.GPSLatitude");
 define("LONGITUDE_TAG", "Exif.GPSInfo.GPSLongitude");
 
 // Cache filenames. You probably don't need to change these
-define("TOKEN_FILE", "token.txt");
-define("SECRET_FILE", "secret.txt");
-define("SEEN_FILE", "seen.txt");
-define("LAST_SEEN_FILE", "lastrun.txt");
+define("TOKEN_FILE", BASE_DIR."token.txt");
+define("SECRET_FILE", BASE_DIR."secret.txt");
+define("SEEN_FILE", BASE_DIR."seen.txt");
+define("LAST_SEEN_PHOTO_FILE", BASE_DIR."lastseen.txt");
+define("LAST_SEEN_COMMENT_FILE", BASE_DIR."lastcomment.txt");
 
 if (count($_SERVER['argv']) > 2)
     exit('Useage: php flickrBackup.php backup/directory [run]'.PHP_EOL);
@@ -142,9 +143,9 @@ function getFiled($name)
 {
     if (isset($GLOBALS[$name]))
         return $GLOBALS[$name];
-    if (file_exists(BASE_DIR.$name))
+    if (file_exists($name))
     {
-        $GLOBALS[$name] = trim(file_get_contents(BASE_DIR.$name));
+        $GLOBALS[$name] = trim(file_get_contents($name));
         return $GLOBALS[$name];
     }
     return '';
@@ -153,7 +154,7 @@ function getFiled($name)
 function setFiled($name, $value)
 {
     $GLOBALS[$name] = $value;
-    file_put_contents(BASE_DIR.$name, $value);
+    file_put_contents($name, $value);
 }
 
 function gzipCall($url)
@@ -282,7 +283,7 @@ function sanitize($string) // , $force_lowercase = false, $anal = false)
 
 function file_contents_if_exists($filename)
 {
-    $filename = BASE_DIR.$filename;
+    $filename = $filename;
     if (file_exists($filename) !== false)
         return file_get_contents($filename);
     return '';
@@ -300,12 +301,16 @@ function runBackup()
     $params['sort'] = 'date-posted-asc';
     $params['method'] = 'flickr.photos.search';
     $params['extras'] = 'description,original_format,geo,tags,machine_tags,date_taken,date_upload';
-    $params['min_upload_date'] = file_contents_if_exists(LAST_SEEN_FILE);
+    $params['min_upload_date'] = file_contents_if_exists(LAST_SEEN_PHOTO_FILE);
     $params['max_upload_date'] = MAX_DATE;
 //    $params['per_page'] = 5;
 
     $params['page'] = 1;
     $count = 0;
+    if (file_exists(SEEN_FILE))
+        $seen = file(SEEN_FILE, FILE_IGNORE_NEW_LINES);
+    else
+        $seen = array();
 
     do
     {
@@ -317,12 +322,11 @@ function runBackup()
 
         // print_r($rsp);
 
-        $seen = file_contents_if_exists(SEEN_FILE);
 
         foreach($rsp['photos']['photo'] as $p)
         {
-            echo 'Copying photo '.$p['id'].' '.$p['title'].PHP_EOL;
-            if (strpos($seen, $p['id']) !== false)
+            echo 'Copying photo "'.$p['id'].'" '.$p['title'].PHP_EOL;
+            if (in_array(trim($p['id']), $seen) === true)
             {
                 echo 'Already seen photo '.$p['id'].', skipping.'.PHP_EOL;
                 continue;
@@ -370,9 +374,9 @@ function runBackup()
                 $cmd .= exivCmd("set ".DESCRIPTION_TAG." ".$description, $filename);
                 exiv($cmd, $filename);
             }
-            $seen .= $p['id'].PHP_EOL;
-            file_put_contents(BASE_DIR.SEEN_FILE, $p['id'].PHP_EOL, FILE_APPEND);
-            file_put_contents(BASE_DIR.LAST_SEEN_FILE, $p['dateupload']);
+            $seen[] = $p['id'];
+            file_put_contents(SEEN_FILE, $p['id'].PHP_EOL, FILE_APPEND);
+            file_put_contents(LAST_SEEN_PHOTO_FILE, $p['dateupload']);
         }
 
         $params['page']++;
