@@ -12,8 +12,8 @@ include('flickrapisecret.php');
 // Backup directory, default is ~/flickrBackup/ Include trailing slash
 define("BASE_DIR", $_SERVER['HOME'].DIRECTORY_SEPARATOR.'flickrBackup'.DIRECTORY_SEPARATOR);
 
-// By default files will be named DAY-HOUR-MINUTE-TITLE-FLICKRID according to when photo was taken
-// See also getFileName()
+// By default files will be named DAY-HOUR-MINUTE-TITLE-ID according to when photo was taken
+// It's a good idea to include ID to guarantee uniqueness. See also getFileName()
 define("FILENAME_FORMAT", 'd-H-i-\T\I\T\L\E-\I\D');
 // By default files will be divided into directories by YEAR-MONTH according to when photo was taken
 define("DIRECTORY_FORMAT", "Y-m");
@@ -301,7 +301,7 @@ function runBackup()
     $params['user_id'] = 'me';
     $params['sort'] = 'date-posted-asc';
     $params['method'] = 'flickr.photos.search';
-    $params['extras'] = 'description,original_format,geo,tags,machine_tags,date_taken,date_upload';
+    $params['extras'] = 'description,geo,tags,machine_tags,date_taken,date_upload,url_o';
     $params['min_upload_date'] = file_contents_if_exists(LAST_SEEN_PHOTO_FILE);
     $params['max_upload_date'] = MAX_DATE;
 //    $params['per_page'] = 5;
@@ -332,8 +332,7 @@ function runBackup()
                 echo 'Already seen photo '.$p['id'].', skipping.'.PHP_EOL;
                 continue;
             }
-            $url = sprintf("http://farm%s.staticflickr.com/%s/%s_%s_o.%s", 
-                $p['farm'], $p['server'], $p['id'], $p['originalsecret'], $p['originalformat']);
+            $url = $p['url_o'];
             $dir = BASE_DIR.date(DIRECTORY_FORMAT, strtotime($p['datetaken']));
             if (!is_dir($dir) && !mkdir($dir, 0755, true))
                 throw new Exception("Could not create directorry $dir");
@@ -349,7 +348,13 @@ function runBackup()
             {
                 $existingtags = getTags(TAG_TAG, $filename);
                 $cmd = '';
-                foreach(explode(' ', $p['tags']) as $tag)
+                $newtags = explode(' ', $p['tags']);
+                // Machine tags
+                foreach(array("ispublic", "isfriend", "isfamily") as $mtag)
+                {
+                    $newtags[] = "flickr:$mtag=".$p[$mtag];
+                }
+                foreach($newtags as $tag)
                 {
                     if (!in_array($tag, $existingtags))
                         $cmd .= exivCmd("add ".TAG_TAG." String $tag", $filename);
