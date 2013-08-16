@@ -383,12 +383,12 @@ function runBackup()
             $c = 1;
             while (!copy($url, $filename))
             {
-                mylog("Copy failed: ".$error['message'].PHP_EOL."Retry $c", 2);
+                $error = error_get_last();
                 if ($c == 3)
                 {
-                    $error = error_get_last();
                     throw new Exception('Copy error: ' . $error['message']);
                 }
+                mylog("Copy failed: ".$error['message'].PHP_EOL."Retry $c", 2);
                 $c++;
             }
             mylog("Saved to $filename");
