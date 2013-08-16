@@ -72,10 +72,9 @@ switch(testFlickr() + 2 * $run)
 function getFileName($photo)
 {
     $filename = date(FILENAME_FORMAT, strtotime($photo['datetaken']));
-    $title = sanitize($photo['title']); 
-    $filename = str_replace("TITLE", $title, $filename);
+    $filename = str_replace("TITLE", $photo['title'], $filename);
     $filename = str_replace("ID", $photo['id'], $filename);
-    $filename = $filename.'.'.$photo['originalformat'];
+    $filename = sanitize($filename).'.'.$photo['originalformat'];
     return $filename;
 }
 
@@ -310,9 +309,9 @@ function runBackup()
     $params['sort'] = 'date-posted-asc';
     $params['method'] = 'flickr.photos.search';
     $params['extras'] = 'description,geo,tags,machine_tags,date_taken,date_upload,url_o,original_format';
-    $params['min_upload_date'] = file_contents_if_exists(LAST_SEEN_PHOTO_FILE) - 1;
+    $params['min_upload_date'] = file_contents_if_exists(LAST_SEEN_PHOTO_FILE) - 1000;
     $params['max_upload_date'] = MAX_DATE;
-//    $params['per_page'] = 5;
+    $params['per_page'] = 500;
 
     $params['page'] = 1;
     $count = 0;
@@ -334,7 +333,7 @@ function runBackup()
 
         foreach($rsp['photos']['photo'] as $p)
         {
-            echo 'Copying photo "'.$p['id'].'" '.$p['title'].PHP_EOL;
+            echo 'Copying photo '.$p['id'].' '.$p['title'].PHP_EOL;
             if (in_array(trim($p['id']), $seen) === true)
             {
                 echo 'Already seen photo '.$p['id'].', skipping.'.PHP_EOL;
@@ -399,7 +398,8 @@ function runBackup()
             }
             $seen[] = $p['id'];
             file_put_contents(SEEN_FILE, $p['id'].PHP_EOL, FILE_APPEND);
-            file_put_contents(LAST_SEEN_PHOTO_FILE, $p['dateupload'] - 1);
+            // Account for FLickr weirdness http://www.flickr.com/groups/api/discuss/72157635089183188/#comment72157635083987333
+            file_put_contents(LAST_SEEN_PHOTO_FILE, $p['dateupload'] - 1000);
         }
 
         $params['page']++;
