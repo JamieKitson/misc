@@ -43,6 +43,7 @@ define("LAST_SEEN_PHOTO_FILE", BASE_DIR."lastseen.txt");
 define("LAST_SEEN_COMMENT_FILE", BASE_DIR."lastcomment.txt");
 
 define("DEFAULT_PER_PAGE", 100);
+define("LOG_LEVEL", 3);
 
 if (count($_SERVER['argv']) > 2)
     exit('Useage: php flickrBackup.php backup/directory [run]'.PHP_EOL);
@@ -274,7 +275,7 @@ function exiv($params, $file)
     $res = pipe_exec(EXIV." -q $params $file");
     if ($res['return'] != 0)
     {
-        echo "exiv error with command '$params', Error: ".$res['stderr'];
+        log("exiv error with command '$params', Error: ".$res['stderr']);
     }
     return $res['stdout'];
 }
@@ -353,18 +354,21 @@ function runBackup()
         if (MAX_BATCH > 0)
             $params['per_page'] = min(DEFAULT_PER_PAGE, MAX_BATCH - $count);
 
+        log("Getting page ".$params['page'], 2);
+        log("Params: ".print_r($params, true), 3);
 
         $rsp = flickrCall($params);
 
-        // print_r($rsp);
+        log("Got ".count$rsp['photos']['photo']." results", 2);
 
+        // print_r($rsp);
 
         foreach($rsp['photos']['photo'] as $p)
         {
-            echo 'Copying photo '.$p['id'].' '.$p['title'].PHP_EOL;
+            log('Copying photo '.$p['id'].' '.$p['title']);
             if (in_array(trim($p['id']), $seen) === true)
             {
-                echo 'Already seen photo '.$p['id'].', skipping.'.PHP_EOL;
+                log('Already seen photo '.$p['id'].', skipping.');
                 continue;
             }
             $url = $p['url_o'];
@@ -382,11 +386,11 @@ function runBackup()
                 }
                 $c++;
             }
-            echo "Saved to $filename".PHP_EOL;
+            log("Saved to $filename");
             $count++;
             if ($p['originalformat'] == 'gif')
             {
-                echo "Can't tag gifs.".PHP_EOL;
+                log("Can't tag gifs.");
             }
             else
             {
@@ -433,6 +437,12 @@ function runBackup()
         $params['page']++;
 
     } while ( $params['page'] <= $rsp['photos']['pages'] && ( MAX_BATCH == 0 || $count < MAX_BATCH ) ) ;
+}
+
+function log($msg, $level = 0)
+{
+    if (LOG_LEVEL >= $level)
+        echo $msg.PHP_EOL;
 }
 
 function getNewComments()
