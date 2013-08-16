@@ -177,7 +177,7 @@ function gzipCall($url)
         if ($c == 3)
             throw new Exception('Curl error: ' . curl_error($ch));
         if ($c > 0)
-            mylog("Error making Flickr call: " . curl_error($ch), 2);
+            mylog("Error making Flickr call: " . curl_error($ch).PHP_EOL."Retry $c", 2);
         $xmlresponse = curl_exec($ch);
         $c++;
     } while (curl_errno($ch) != 0);
@@ -383,7 +383,7 @@ function runBackup()
             $c = 1;
             while (!copy($url, $filename))
             {
-                mylog("Copy failed, retrying: ".$error['message'], 2);
+                mylog("Copy failed: ".$error['message'].PHP_EOL."Retry $c", 2);
                 if ($c == 3)
                 {
                     $error = error_get_last();
