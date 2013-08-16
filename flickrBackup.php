@@ -42,6 +42,8 @@ define("SEEN_FILE", BASE_DIR."seen.txt");
 define("LAST_SEEN_PHOTO_FILE", BASE_DIR."lastseen.txt");
 define("LAST_SEEN_COMMENT_FILE", BASE_DIR."lastcomment.txt");
 
+define("DEFAULT_PER_PAGE", 100);
+
 if (count($_SERVER['argv']) > 2)
     exit('Useage: php flickrBackup.php backup/directory [run]'.PHP_EOL);
 
@@ -237,18 +239,44 @@ function authenticate()
 
 }
 
+// Thanks http://darklaunch.com/2013/03/21/php-exec-stderr-stdout-return-code
+function pipe_exec($cmd, $input='') 
+{
+    $proc = proc_open($cmd, array(array('pipe', 'r'), array('pipe', 'w'), array('pipe', 'w')), $pipes);
+    fwrite($pipes[0], $input);
+    fclose($pipes[0]);
+ 
+    $stdout = stream_get_contents($pipes[1]);
+    fclose($pipes[1]);
+ 
+    $stderr = stream_get_contents($pipes[2]);
+    fclose($pipes[2]);
+ 
+    $return = (int)proc_close($proc);
+ 
+    return array(
+        'stdout' => $stdout,
+        'stderr' => $stderr,
+        'return' => $return,
+    );
+}
+
 function exivCmd($cmd, $file)
 {
     $cmd = str_replace('"', '\"', $cmd);
 //    echo $cmd.PHP_EOL;
-//    exiv('-M"'.$cmd.'"', $file);
-    return ' -M"'.$cmd.'" ';
+    exiv('-M"'.$cmd.'"', $file);
+//    return ' -M"'.$cmd.'" ';
 }
 
 function exiv($params, $file)
 {
-    exec(EXIV." -q $params $file", $output, $return);
-    return $output;
+    $res = pipe_exec(EXIV." -q $params $file");
+    if ($res['return'] != 0)
+    {
+        echo "exiv error with command '$params', Error: ".$res['stderr'];
+    }
+    return $res['stdout'];
 }
 
 function latLon($deg, $tag, $pos, $neg, $file)
@@ -311,7 +339,7 @@ function runBackup()
     $params['extras'] = 'description,geo,tags,machine_tags,date_taken,date_upload,url_o,original_format';
     $params['min_upload_date'] = file_contents_if_exists(LAST_SEEN_PHOTO_FILE) - 1000;
     $params['max_upload_date'] = MAX_DATE;
-    $params['per_page'] = 500;
+    $params['per_page'] = DEFAULT_PER_PAGE;
 
     $params['page'] = 1;
     $count = 0;
@@ -323,7 +351,7 @@ function runBackup()
     do
     {
         if (MAX_BATCH > 0)
-            $params['per_page'] = MAX_BATCH - $count;
+            $params['per_page'] = min(DEFAULT_PER_PAGE, MAX_BATCH - $count);
 
 
         $rsp = flickrCall($params);
@@ -394,7 +422,7 @@ function runBackup()
                 }
 
                 $cmd .= exivCmd("set ".DESCRIPTION_TAG." ".$description, $filename);
-                exiv($cmd, $filename);
+                // exiv($cmd, $filename);
             }
             $seen[] = $p['id'];
             file_put_contents(SEEN_FILE, $p['id'].PHP_EOL, FILE_APPEND);
