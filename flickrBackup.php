@@ -176,6 +176,8 @@ function gzipCall($url)
     {
         if ($c == 3)
             throw new Exception('Curl error: ' . curl_error($ch));
+        if ($c > 0)
+            mylog("Error making Flickr call: " . curl_error($ch), 2);
         $xmlresponse = curl_exec($ch);
         $c++;
     } while (curl_errno($ch) != 0);
@@ -273,11 +275,13 @@ function exivCmd($cmd, $file)
 function exiv($params, $file)
 {
     $res = pipe_exec(EXIV." -q $params $file");
-    if ($res['return'] != 0)
+//    if ($res['return'] != 0)
+    if ($res['stderr'] != '')
     {
-        log("exiv error with command '$params', Error: ".$res['stderr']);
+//        mylog($res['return']);
+        mylog("exiv error with command '-q $params $file', Error: ".$res['stderr']);
     }
-    return $res['stdout'];
+    return explode("\n", $res['stdout']);
 }
 
 function latLon($deg, $tag, $pos, $neg, $file)
@@ -354,21 +358,21 @@ function runBackup()
         if (MAX_BATCH > 0)
             $params['per_page'] = min(DEFAULT_PER_PAGE, MAX_BATCH - $count);
 
-        log("Getting page ".$params['page'], 2);
-        log("Params: ".print_r($params, true), 3);
+        mylog("Getting page ".$params['page'], 2);
+        mylog("Params: ".print_r($params, true), 3);
 
         $rsp = flickrCall($params);
 
-        log("Got ".count$rsp['photos']['photo']." results", 2);
+        mylog("Got ".count($rsp['photos']['photo'])." results", 2);
 
         // print_r($rsp);
 
         foreach($rsp['photos']['photo'] as $p)
         {
-            log('Copying photo '.$p['id'].' '.$p['title']);
+            mylog('Copying photo '.$p['id'].' '.$p['title']);
             if (in_array(trim($p['id']), $seen) === true)
             {
-                log('Already seen photo '.$p['id'].', skipping.');
+                mylog('Already seen photo '.$p['id'].', skipping.');
                 continue;
             }
             $url = $p['url_o'];
@@ -379,6 +383,7 @@ function runBackup()
             $c = 1;
             while (!copy($url, $filename))
             {
+                mylog("Copy failed, retrying: ".$error['message'], 2);
                 if ($c == 3)
                 {
                     $error = error_get_last();
@@ -386,11 +391,11 @@ function runBackup()
                 }
                 $c++;
             }
-            log("Saved to $filename");
+            mylog("Saved to $filename");
             $count++;
             if ($p['originalformat'] == 'gif')
             {
-                log("Can't tag gifs.");
+                mylog("Can't tag gifs.");
             }
             else
             {
@@ -439,7 +444,7 @@ function runBackup()
     } while ( $params['page'] <= $rsp['photos']['pages'] && ( MAX_BATCH == 0 || $count < MAX_BATCH ) ) ;
 }
 
-function log($msg, $level = 0)
+function mylog($msg, $level = 0)
 {
     if (LOG_LEVEL >= $level)
         echo $msg.PHP_EOL;
