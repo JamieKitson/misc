@@ -295,8 +295,8 @@ function latLon($deg, $tag, $pos, $neg, $file)
         $sign = $pos;
     list($int, $frac) = explode('.', trim(abs($deg), '0'));
     $ration = ltrim($int . $frac, '0') . '/1' . str_repeat('0', strlen($frac));
-    $res = exivCmd("set $tag $ration", $file);
-    $res .= exivCmd("set ".$tag."Ref $sign", $file);
+    $res = exivCmd("set $tag Rational $ration", $file);
+    $res .= exivCmd("set ".$tag."Ref Ascii $sign", $file);
     return $res;
 }
 
@@ -436,7 +436,8 @@ function runBackup()
                     }
                 }
 
-                $cmd .= exivCmd("set ".DESCRIPTION_TAG." ".$description, $filename);
+                if (trim($description) != '')
+                    $cmd .= exivCmd("set ".DESCRIPTION_TAG." Ascii ".$description, $filename);
                 // exiv($cmd, $filename);
             }
             $seen[] = $p['id'];
@@ -450,7 +451,7 @@ function runBackup()
             }
         }
 
-        $params['page']++;
+        $params['page'] = $params['page'] + 1;
 
     } while ( $params['page'] <= $rsp['photos']['pages'] ) ;
 }
