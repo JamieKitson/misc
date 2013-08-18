@@ -1,9 +1,17 @@
 <?php
 
 /*
-
     This script attempts to download your Flickr photos and insert meta data such as 
     title, description, tags and comments into the jpegs.
+
+    Currently (Aug 2013) the Flickr API doesn't function properly when the min_upload_date
+    and/or max_upload_date parameters are used, so rather than keeping a record of the
+    latest upload date seen, I am keeping a record of the last page seen. As long as
+    the per_page parameter is not changed and you don't change the upload date of photos
+    this should remain constant.
+
+    http://www.flickr.com/help/forum/en-us/72157635089298188/#reply72157635100917894
+    http://tech.groups.yahoo.com/group/yws-flickr/message/8311
 
 */
 
@@ -39,10 +47,10 @@ define("LONGITUDE_TAG", "Exif.GPSInfo.GPSLongitude");
 define("TOKEN_FILE", BASE_DIR."token.txt");
 define("SECRET_FILE", BASE_DIR."secret.txt");
 define("SEEN_FILE", BASE_DIR."seen.txt");
-define("LAST_SEEN_PHOTO_FILE", BASE_DIR."lastseen.txt");
+define("LAST_SEEN_PAGE_FILE", BASE_DIR."lastseenpage.txt");
+define("LAST_SEEN_PHOTO_FILE", BASE_DIR."lastseendate.txt");
 define("LAST_SEEN_COMMENT_FILE", BASE_DIR."lastcomment.txt");
 
-define("DEFAULT_PER_PAGE", 100);
 define("LOG_LEVEL", 3);
 
 if (count($_SERVER['argv']) > 2)
@@ -181,12 +189,7 @@ function gzipCall($url)
         $xmlresponse = curl_exec($ch);
         $c++;
     } while (curl_errno($ch) != 0);
-/*
-    if (curl_errno($ch) != 0)
-    {
-        throw new Exception('Curl error: ' . curl_error($ch));
-    }
-*/
+
     curl_close($ch);
 
 //    echo $xmlresponse;
@@ -314,20 +317,15 @@ function sanitize($string) // , $force_lowercase = false, $anal = false)
                    "â€”", "â€“", ",", "<", ".", ">", "/", "?");
     $clean = trim(str_replace($strip, "-", strip_tags($string)));
     $clean = collapseChar($clean, '-', '-');
-/*    $clean = ($anal) ? preg_replace("/[^a-zA-Z0-9]/", "", $clean) : $clean ;
-    return ($force_lowercase) ?
-        (function_exists('mb_strtolower')) ?
-            mb_strtolower($clean, 'UTF-8') :
-            strtolower($clean) : */
     return    $clean;
 }
 
-function file_contents_if_exists($filename)
+function file_contents_if_exists($filename, $default = '')
 {
     $filename = $filename;
-    if (file_exists($filename) !== false)
+    if (file_exists($filename) != false)
         return file_get_contents($filename);
-    return '';
+    return $default;
 }
 
 function collapseChar($string, $char, $replacement)
@@ -342,11 +340,15 @@ function runBackup()
     $params['sort'] = 'date-posted-asc';
     $params['method'] = 'flickr.photos.search';
     $params['extras'] = 'description,geo,tags,machine_tags,date_taken,date_upload,url_o,original_format';
-    $params['min_upload_date'] = file_contents_if_exists(LAST_SEEN_PHOTO_FILE) - 1000;
-    $params['max_upload_date'] = MAX_DATE;
-    $params['per_page'] = DEFAULT_PER_PAGE;
 
-    $params['page'] = 1;
+// See note at top regarding min_upload_date and max_upload_date
+//    $params['min_upload_date'] = file_contents_if_exists(LAST_SEEN_PHOTO_FILE);
+//    $params['max_upload_date'] = MAX_DATE;
+
+    // WARNING: If you change the per_page parameter then the saved page parameter won't make sense any more
+    $params['per_page'] = 100;
+    $params['page'] = file_contents_if_exists(LAST_SEEN_PAGE_FILE, 1);
+
     $count = 0;
     if (file_exists(SEEN_FILE))
         $seen = file(SEEN_FILE, FILE_IGNORE_NEW_LINES);
@@ -355,9 +357,8 @@ function runBackup()
 
     do
     {
-        if (MAX_BATCH > 0)
-            $params['per_page'] = min(DEFAULT_PER_PAGE, MAX_BATCH - $count);
-
+        file_put_contents(LAST_SEEN_PAGE_FILE, $params['page']);
+        
         mylog("Getting page ".$params['page'], 2);
         mylog("Params: ".print_r($params, true), 3);
 
@@ -370,6 +371,11 @@ function runBackup()
         foreach($rsp['photos']['photo'] as $p)
         {
             mylog('Copying photo '.$p['id'].' '.$p['title']);
+            if ($p['dateupload'] > MAX_DATE)
+            {
+                mylog("Reached MAX_DATE, ".$p['dateupload']." > ".MAX_DATE);
+                exit;
+            }
             if (in_array(trim($p['id']), $seen) === true)
             {
                 mylog('Already seen photo '.$p['id'].', skipping.');
@@ -436,12 +442,17 @@ function runBackup()
             $seen[] = $p['id'];
             file_put_contents(SEEN_FILE, $p['id'].PHP_EOL, FILE_APPEND);
             // Account for FLickr weirdness http://www.flickr.com/groups/api/discuss/72157635089183188/#comment72157635083987333
-            file_put_contents(LAST_SEEN_PHOTO_FILE, $p['dateupload'] - 1000);
+            file_put_contents(LAST_SEEN_PHOTO_FILE, $p['dateupload']); //  - 1000);
+            if ((MAX_BATCH > 0) && ($count < MAX_BATCH))
+            {
+                mylog("MAX_BATCH of ".MAX_BATCH." reached.");
+                exit;
+            }
         }
 
         $params['page']++;
 
-    } while ( $params['page'] <= $rsp['photos']['pages'] && ( MAX_BATCH == 0 || $count < MAX_BATCH ) ) ;
+    } while ( $params['page'] <= $rsp['photos']['pages'] ) ;
 }
 
 function mylog($msg, $level = 0)
