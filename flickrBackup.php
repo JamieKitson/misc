@@ -14,7 +14,7 @@
     and/or max_upload_date parameters are used, so rather than keeping a record of the
     latest upload date seen, I am keeping a record of the last page seen. As long as
     the per_page parameter is not changed and you don't change the upload date of photos
-    this should remain constant.
+    or delete any old photos this should remain constant.
 
     http://www.flickr.com/help/forum/en-us/72157635089298188/#reply72157635100917894
     http://tech.groups.yahoo.com/group/yws-flickr/message/8311
