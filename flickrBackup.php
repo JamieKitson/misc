@@ -267,12 +267,14 @@ function pipe_exec($cmd, $input='')
     );
 }
 
-function exivCmd($cmd, $file)
+function exivCmd($cmd, $tag, $type, $value, $file)
 {
-    $cmd = str_replace('"', '\"', $cmd);
-//    echo $cmd.PHP_EOL;
-    exiv('-M"'.$cmd.'"', $file);
-//    return ' -M"'.$cmd.'" ';
+    // Quoting exiv values is a bit weird, but this works.
+    $value = str_replace('"', '\"', "\"$value\"");
+    $cli = "-M\"$cmd $tag $type $value\"";
+//    echo $cli.PHP_EOL;
+    exiv($cli, $file);
+//    return " $cli ";
 }
 
 function exiv($params, $file)
@@ -295,8 +297,8 @@ function latLon($deg, $tag, $pos, $neg, $file)
         $sign = $pos;
     list($int, $frac) = explode('.', trim(abs($deg), '0'));
     $ration = ltrim($int . $frac, '0') . '/1' . str_repeat('0', strlen($frac));
-    $res = exivCmd("set $tag Rational $ration", $file);
-    $res .= exivCmd("set ".$tag."Ref Ascii $sign", $file);
+    $res = exivCmd("set", $tag, "Rational", $ration, $file);
+    $res .= exivCmd("set", $tag."Ref", "Ascii", $sign, $file);
     return $res;
 }
 
@@ -416,7 +418,7 @@ function runBackup()
                 foreach($newtags as $tag)
                 {
                     if (!in_array($tag, $existingtags))
-                        $cmd .= exivCmd("add ".TAG_TAG." String $tag", $filename);
+                        $cmd .= exivCmd("add", TAG_TAG, "String", $tag, $filename);
                 }
             //    echo gettype($p['latitude']);
                 if ((($p['latitude'] !== 0) || ($p['longitude'] !== 0)) && !hasLatLon($filename)) 
@@ -424,7 +426,7 @@ function runBackup()
                     $cmd .= latLon($p['latitude'], LATITUDE_TAG, 'N', 'S', $filename);
                     $cmd .= latLon($p['longitude'], LONGITUDE_TAG, 'E', 'W', $filename);
                 }
-                $cmd .= exivCmd("set ".TITLE_TAG." ".$p['title'], $filename);
+                $cmd .= exivCmd("set", TITLE_TAG, "Ascii", $p['title'], $filename);
                 $description = $p['description']['_content'];
                 $comments = flickrCall(array('method' => 'flickr.photos.comments.getList', 'photo_id' => $p['id']));
 
@@ -437,7 +439,7 @@ function runBackup()
                 }
 
                 if (trim($description) != '')
-                    $cmd .= exivCmd("set ".DESCRIPTION_TAG." Ascii ".$description, $filename);
+                    $cmd .= exivCmd("set", DESCRIPTION_TAG, "Ascii", $description, $filename);
                 // exiv($cmd, $filename);
             }
             $seen[] = $p['id'];
