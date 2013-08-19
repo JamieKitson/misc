@@ -2,7 +2,13 @@
 
 /*
     This script attempts to download your Flickr photos and insert meta data such as 
-    title, description, tags and comments into the jpegs.
+    title, description, tags and comments into the jpegs as EXIF tags.
+
+    To use this script you will need to get your own API Key and add it and the secret
+    to the settings below. I have my secret in flickrapisecret.php so as not to commit
+    it.
+
+    http://www.flickr.com/services/apps/create/apply/
 
     Currently (Aug 2013) the Flickr API doesn't function properly when the min_upload_date
     and/or max_upload_date parameters are used, so rather than keeping a record of the
@@ -15,9 +21,11 @@
 
 */
 
-include('flickrapisecret.php');
+// You will need to change these two settings
+define("API_SECRET", file_contents_if_exists("flickrapisecret.php"));
+define("API_KEY", "b51ae39f6b166d53ea1c4bd4751de3e0");
 
-// Backup directory, default is ~/flickrBackup/ Include trailing slash
+// Backup directory, default is ~/flickrBackup/ (include trailing slash)
 define("BASE_DIR", $_SERVER['HOME'].DIRECTORY_SEPARATOR.'flickrBackup'.DIRECTORY_SEPARATOR);
 
 // By default files will be named DAY-HOUR-MINUTE-TITLE-ID according to when photo was taken
@@ -91,7 +99,7 @@ function getFileName($photo)
 
 function flickrCall($params, $uri = "rest")
 {
-    $params['oauth_consumer_key'] = 'b51ae39f6b166d53ea1c4bd4751de3e0';
+    $params['oauth_consumer_key'] = API_KEY;
     $params['oauth_nonce'] = rand(0, 99999999);
     $params['oauth_timestamp'] = date('U');
     $params['oauth_signature_method'] = 'HMAC-SHA1';
@@ -116,7 +124,7 @@ function flickrCall($params, $uri = "rest")
 
     $tokensecret = getFiled(SECRET_FILE);
 
-    $sig = urlencode(base64_encode(hash_hmac('sha1', $base, $GLOBALS['apisecret']."&$tokensecret", true)));
+    $sig = urlencode(base64_encode(hash_hmac('sha1', $base, API_SECRET."&$tokensecret", true)));
 
     $url .= "?$p&oauth_signature=$sig";
 
@@ -205,7 +213,7 @@ function authenticate()
     $params['oauth_callback'] = 'http://flickr.com';
     $q = flickrCall($params, 'oauth/request_token');
     if (!array_key_exists('oauth_callback_confirmed', $q) || $q['oauth_callback_confirmed'] != true)
-        exit("Flickr didn't return oauth_callback_confirmed true: $rsp");
+        exit("Flickr didn't return oauth_callback_confirmed true: ".print_r($q, true).PHP_EOL);
     $url = 'http://www.flickr.com/services/oauth/authorize?perms=read&oauth_token='.$q['oauth_token'];
     setFiled(SECRET_FILE, $q['oauth_token_secret']);
 
@@ -326,7 +334,7 @@ function file_contents_if_exists($filename, $default = '')
 {
     $filename = $filename;
     if (file_exists($filename) != false)
-        return file_get_contents($filename);
+        return trim(file_get_contents($filename));
     return $default;
 }
 
