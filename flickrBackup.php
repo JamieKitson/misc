@@ -5,7 +5,7 @@
     title, description, tags and comments into the jpegs as EXIF tags.
 
     To use this script you will need to get your own API Key and add it and the secret
-    to the settings below. I have my secret in flickrapisecret.php so as not to commit
+    to the settings below. I have my API secret in flickrapisecret.php so as not to commit
     it.
 
     http://www.flickr.com/services/apps/create/apply/
