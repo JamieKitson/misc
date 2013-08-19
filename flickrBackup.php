@@ -347,7 +347,6 @@ function runBackup()
 {
     $params = Array();
     $params['user_id'] = 'me';
-    $params['sort'] = 'date-posted-asc';
     $params['method'] = 'flickr.photos.search';
     $params['extras'] = 'description,geo,tags,machine_tags,date_taken,date_upload,url_o,original_format';
 
@@ -355,8 +354,10 @@ function runBackup()
 //    $params['min_upload_date'] = file_contents_if_exists(LAST_SEEN_PHOTO_FILE);
 //    $params['max_upload_date'] = MAX_DATE;
 
-    // WARNING: If you change the per_page parameter then the saved page parameter won't make sense any more
+    // WARNING: If you change the per_page/sort parameters then the saved page parameter won't make sense any more
     $params['per_page'] = 100;
+    $params['sort'] = 'date-posted-asc';
+
     $params['page'] = file_contents_if_exists(LAST_SEEN_PAGE_FILE, 1);
 
     $count = 0;
