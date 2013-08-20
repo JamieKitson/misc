@@ -91,8 +91,8 @@ switch(testFlickr() + 2 * $run)
 function getFileName($photo)
 {
     $filename = date(FILENAME_FORMAT, strtotime($photo['datetaken']));
-    $filename = str_replace("TITLE", $photo['title'], $filename);
     $filename = str_replace("ID", $photo['id'], $filename);
+    $filename = str_replace("TITLE", $photo['title'], $filename);
     $filename = sanitize($filename).'.'.$photo['originalformat'];
     return $filename;
 }
