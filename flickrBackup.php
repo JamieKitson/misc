@@ -381,7 +381,7 @@ function runBackup()
 
         foreach($rsp['photos']['photo'] as $p)
         {
-            mylog('Copying photo '.$p['id'].' '.$p['title']);
+            mylog('Processing photo '.$p['id'].' '.$p['title']);
             if ($p['dateupload'] > MAX_DATE)
             {
                 mylog("Reached MAX_DATE, ".$p['dateupload']." > ".MAX_DATE);
@@ -398,6 +398,7 @@ function runBackup()
                 throw new Exception("Could not create directorry $dir");
             $filename = $dir.DIRECTORY_SEPARATOR.getFileName($p);
             $c = 1;
+            mylog('Copying photo '.$p['id'].' '.$p['title'], 4);
             while (!copy($url, $filename))
             {
                 $error = error_get_last();
