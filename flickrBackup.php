@@ -22,7 +22,7 @@
 */
 
 // You will need to change these two settings
-define("API_SECRET", file_contents_if_exists("flickrapisecret.php"));
+define("API_SECRET", file_contents_if_exists(dirname(__FILE__).DIRECTORY_SEPARATOR."flickrapisecret.php"));
 define("API_KEY", "b51ae39f6b166d53ea1c4bd4751de3e0");
 
 // Backup directory, default is ~/flickrBackup/ (include trailing slash)
@@ -61,7 +61,7 @@ define("LAST_SEEN_COMMENT_FILE", BASE_DIR."lastcomment.txt");
 
 define("LOG_LEVEL", 3);
 
-if (count($_SERVER['argv']) > 2)
+if ((count($_SERVER['argv']) > 2) || ((count($_SERVER['argv']) == 2) && ($_SERVER['argv'][1] != 'run')))
     exit('Useage: php flickrBackup.php backup/directory [run]'.PHP_EOL);
 
 if (!is_dir(BASE_DIR) && !mkdir(BASE_DIR, 0755, true))
@@ -135,7 +135,9 @@ function flickrCall($params, $uri = "rest")
 //        echo $rsp."\n"; 
 
     if ($uri == 'rest')
+    {
         return unserialize($rsp);
+    }
     elseif ($uri = 'oauth/request_token')
     {
       parse_str($rsp, $q);
