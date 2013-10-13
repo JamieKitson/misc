@@ -289,7 +289,9 @@ function exivCmd($cmd, $tag, $type, $value, $file)
 
 function exiv($params, $file)
 {
-    $res = pipe_exec(EXIV." -q $params $file");
+    $cmd = EXIV." -q $params $file";
+    mylog($cmd, 4);
+    $res = pipe_exec($cmd);
 //    if ($res['return'] != 0)
     if ($res['stderr'] != '')
     {
@@ -319,7 +321,8 @@ function getTags($tag, $filename)
 
 function hasLatLon($filename)
 {
-    return count(getTags(LATITUDE_TAG.' -g '.LONGITUDE_TAG, $filename)) > 0;
+    $res = getTags(LATITUDE_TAG.' -g '.LONGITUDE_TAG, $filename);
+    return (count($res) > 0) && (trim($res[0]) != '');
 }
 
 function sanitize($string) // , $force_lowercase = false, $anal = false) 
