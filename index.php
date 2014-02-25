@@ -20,9 +20,9 @@
 error_reporting(E_ALL);
 ini_set('display_errors', '1');
 
-$lines = file('../../log.txt');
+$lines = file('../../solarlog.txt');
 
-$i = 0;
+$i = max(0, count($lines) - 365 * 3);
 
 while($i < count($lines))
 {
