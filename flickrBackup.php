@@ -59,33 +59,47 @@ define("LAST_SEEN_PAGE_FILE", BASE_DIR."lastseenpage.txt");
 define("LAST_SEEN_PHOTO_FILE", BASE_DIR."lastseendate.txt");
 define("LAST_SEEN_COMMENT_FILE", BASE_DIR."lastcomment.txt");
 
-define("LOG_LEVEL", 3);
+define("LOG_LEVEL", 2);
 
-if ((count($_SERVER['argv']) > 2) || ((count($_SERVER['argv']) == 2) && ($_SERVER['argv'][1] != 'run')))
-    exit('Useage: php flickrBackup.php backup/directory [run]'.PHP_EOL);
+$CMDS = Array('run', 'auth', 'gps');
+
+if ((count($_SERVER['argv']) != 2) || (!in_array($_SERVER['argv'][1], $CMDS)))
+    exit('Useage: php flickrBackup.php backup/directory ['.implode('|', $CMDS).']'.PHP_EOL);
 
 if (!is_dir(BASE_DIR) && !mkdir(BASE_DIR, 0755, true))
     throw new Exception("Could not create directorry ".BASE_DIR);
 
 $run = (count($_SERVER['argv']) == 2) && ($_SERVER['argv'][1] == 'run');
 
-switch(testFlickr() + 2 * $run)
+$loggedIn = testFlickr();
+$arg = $_SERVER['argv'][1];
+
+// auth
+if ($arg == $CMDS[1])
 {
-    case 0:
-        authenticate();
-        exit;
-        break;
-    case 1:
+    if ($loggedIn)
         exit('Already logged in. If you want to clear your session delete the token and secret files. '.
             'To run the backup include "run" as parameter.'.PHP_EOL);
-        break;
-    case 2:
-        throw new Exception("Can't run, need interactive log in.");
-        break;
-    case 3:
+    authenticate();
+    exit;
+}
+
+if (!$loggedIn)
+{
+    throw new Exception("Can't run, need interactive log in.");
+}
+
+// run
+if ($arg == $CMDS[0])
+{
 //        getNewComments();
-        runBackup();
-        break;
+    runBackup();
+}
+
+// gps
+if ($arg == $CMDS[2])
+{
+    updateGPS();
 }
 
 function getFileName($photo)
@@ -118,7 +132,7 @@ function flickrCall($params, $uri = "rest")
     sort($encoded_params);
     $p = implode('&', $encoded_params);
 
-    $url = "http://api.flickr.com/services/$uri";
+    $url = "https://api.flickr.com/services/$uri";
 
     $base = "GET&".urlencode($url)."&".urlencode($p);
 
@@ -494,6 +508,56 @@ function getNewComments()
     {
         echo $act['event']['type'];
     }
+}
+
+function updateGPS()
+{
+    $seenfile = 'seengps.txt';
+    if (file_exists($seenfile))
+        $seen = file($seenfile, FILE_IGNORE_NEW_LINES);
+    else
+        $seen = array();
+
+    $it = new RecursiveDirectoryIterator(BASE_DIR);
+    $display = Array ( 'png', 'jpg' );
+    foreach(new RecursiveIteratorIterator($it) as $filename)
+    {
+        $parts = explode('.', $filename);
+        if (in_array(strtolower(array_pop($parts)), $display))
+        {
+            $id = array_pop(explode('-', $parts[0]));
+            if (in_array($id, $seen) === true)
+            {
+                mylog("Already seen photo $id, skipping.");
+                continue;
+            }
+            if (hasLatLon($filename))
+            {
+                mylog("$filename has Lat Lon", 3);
+            }
+            else
+            {
+                mylog("$filename doesn't have Lat Lon", 2);
+                $p = flickrCall(Array('method' => 'flickr.photos.geo.getLocation', 'photo_id' => $id));
+                // print_r($p);
+                if ($p['stat'] == 'ok')
+                {
+                    $lat = $p['photo']['location']['latitude'];
+                    $lon = $p['photo']['location']['longitude'];
+                    mylog("setting lat lon $lat $lon");
+                    latLon($lat, LATITUDE_TAG, 'N', 'S', $filename);
+                    latLon($lon, LONGITUDE_TAG, 'E', 'W', $filename);
+                }
+                else
+                {
+                    mylog("no lat lon from flickr");
+                }
+            }
+            $seen[] = $id;
+            file_put_contents($seenfile, $id.PHP_EOL, FILE_APPEND);
+        }
+    }
+
 }
 
 ?>
