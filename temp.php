@@ -44,6 +44,7 @@ foreach($lines as $line)
             switch ($c)
             {
                 case 5: echo "['Time', 'fan speed', 'temp1', 'temp2', 'temp3'],\n"; break;
+                case 7: echo "['Time', 'fan speed', 'temp1', 'temp3', 'CPU', 'Tx', 'Rx'],\n"; break;
                 case 8: echo "['Time', 'fan speed', 'temp1', 'temp2', 'temp3', 'CPU', 'Tx', 'Rx'],\n"; break;
             }
         }
@@ -72,7 +73,7 @@ foreach($lines as $line)
             1:{targetAxisIndex:1},
             2:{targetAxisIndex:1},
             3:{targetAxisIndex:1},
-            4:{targetAxisIndex:1},
+            4:{targetAxisIndex:<?php echo ($c == 7) ? "0" : "1" ?>},
             5:{targetAxisIndex:0},
             6:{targetAxisIndex:0}},
           vAxes: {
