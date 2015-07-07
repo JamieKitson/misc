@@ -22,10 +22,18 @@ ini_set('display_errors', '1');
 
 $lines = file('../../solarlog.txt');
 
-$i = max(0, count($lines) - 365 * 3);
+//$i = max(0, count($lines) - 365 * 3);
+$i = 0;
+
+$yearago = date("c", strtotime("-1 year"));
 
 while($i < count($lines))
 {
+  if ($lines[$i] < $yearago)
+  {
+    $i++;
+    continue;
+  }
   $out = '';
   $curDate = getD($lines[$i]);
   $c = 0;
